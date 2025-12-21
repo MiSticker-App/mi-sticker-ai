@@ -23,13 +23,7 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.ms.misticker.app",
-      "metaData": [
-        {
-          "name": "com.google.android.gms.ads.APPLICATION_ID",
-          "value": "ca-app-pub-3940256099942544~3347511713"
-        }
-      ]
+      "package": "com.ms.misticker.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
