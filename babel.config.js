@@ -3,9 +3,9 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // NativeWind va primero
+      // NativeWind siempre va
       "nativewind/babel",
-      // Reanimated SIEMPRE va el último
+      // Reanimated SIEMPRE el último
       "react-native-reanimated/plugin",
     ],
   };
