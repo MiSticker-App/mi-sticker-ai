@@ -76,6 +76,11 @@ pip-delete-this-directory.txt
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+# Ignorar .env en cualquier subdirectorio
+**/.env
+**/.env.local
 
 # Archivos de configuración sensibles
 *.pem
