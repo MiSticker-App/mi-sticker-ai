@@ -30,3 +30,4 @@ openai>=1.0.0
 # Para manejo de archivos multipart
 python-multipart>=0.0.6
 
+onnxruntime
