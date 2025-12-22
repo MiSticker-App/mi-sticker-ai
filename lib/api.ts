@@ -1,9 +1,21 @@
 import { Platform } from "react-native";
 
-// Para dispositivo físico, ajusta esta IP según tu red local
-const LOCAL_NETWORK_IP = "192.168.1.100"; // Cambia esto por tu IP local
+// URL base del backend - usa variable de entorno o fallback a desarrollo local
+// Para producción en Railway, configura EXPO_PUBLIC_API_URL en tus variables de entorno
+// Ejemplo: EXPO_PUBLIC_API_URL=https://ms-misticker-production.up.railway.app
+const API_URL = process.env.EXPO_PUBLIC_API_URL || null;
+
+// Para dispositivo físico en desarrollo, ajusta esta IP según tu red local
+// Puedes configurar EXPO_PUBLIC_LOCAL_IP en tus variables de entorno
+const LOCAL_NETWORK_IP = process.env.EXPO_PUBLIC_LOCAL_IP || "192.168.1.100";
 
 function getBaseUrl(): string {
+  // Si hay una URL de API configurada (producción), usarla directamente
+  if (API_URL) {
+    return API_URL;
+  }
+  
+  // Desarrollo local
   if (Platform.OS === "android") {
     // Emulador Android usa 10.0.2.2 para localhost
     return "http://10.0.2.2:8000";

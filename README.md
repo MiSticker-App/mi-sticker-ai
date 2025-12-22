@@ -10,6 +10,10 @@ App nativa Android para generar stickers con IA. Estética "TikTok Sleek".
 - **Navegación**: Expo Router (File-based routing)
 - **Iconos**: Lucide-react-native
 - **Backend**: FastAPI (Python)
+- **IA para Imágenes**: Fal.ai (Flux Schnell)
+- **IA para Textos**: OpenAI GPT-4o-mini (principal) / Hugging Face (fallback)
+- **Background Removal**: rembg (U2Net) - Offline, sin API keys
+- **Procesamiento de Imágenes**: Pillow, OpenCV, NumPy
 
 ## Instalación y Setup
 
@@ -38,18 +42,20 @@ source ../venv/bin/activate  # En macOS/Linux
 ..\venv\Scripts\activate     # En Windows
 ```
 
-2. Instala las dependencias (si aún no lo has hecho):
+2. Instala las dependencias:
 ```bash
-pip install fastapi uvicorn huggingface_hub python-dotenv pydantic
+pip install -r requirements.txt
 ```
 
-3. Configura el token de Hugging Face:
+3. Configura las variables de entorno:
 ```bash
 # Copia el archivo de ejemplo
-cp .env.example .env
+cp backend/.env.example backend/.env
 
-# Edita .env y añade tu token de Hugging Face
-# Obtén tu token en: https://huggingface.co/settings/tokens
+# Edita backend/.env y añade tus claves:
+# - FAL_KEY (requerida) - Obtén tu key en: https://fal.ai/dashboard
+# - OPENAI_API_KEY (opcional) - Para generación de textos mejorada
+# - HF_TOKEN (opcional) - Para fallback de textos: https://huggingface.co/settings/tokens
 ```
 
 4. Inicia el servidor:
@@ -65,9 +71,12 @@ Para conectar la app con el backend en un dispositivo físico:
    - macOS/Linux: `ifconfig | grep "inet "`
    - Windows: `ipconfig`
 
-2. **Actualiza la IP en el frontend**:
-   - Edita `lib/api.ts`
-   - Cambia `LOCAL_NETWORK_IP` por tu IP local (ej: `192.168.1.100`)
+2. **Configura la IP local** (opcional):
+   - Opción 1: Crea un archivo `.env` en la raíz del proyecto con:
+     ```
+     EXPO_PUBLIC_LOCAL_IP=192.168.1.100
+     ```
+   - Opción 2: Edita `lib/api.ts` y cambia `LOCAL_NETWORK_IP` directamente
 
 3. **Asegúrate de que ambos dispositivos estén en la misma red WiFi**
 
@@ -101,20 +110,27 @@ misticker/
 - ✅ Botón "Varita Mágica" ✨ para generar textos con IA
 - ✅ Sistema de límite diario (5 generaciones cada 24h)
 - ✅ Pantalla Gallery con grid de 2 columnas
-- ✅ Integración con Hugging Face para generación de textos
+- ✅ Generación de imágenes con IA usando Fal.ai (Flux Schnell)
+- ✅ Generación de textos con OpenAI GPT-4o-mini (fallback a Hugging Face)
+- ✅ Background removal automático con rembg (offline, sin API keys)
+- ✅ Procesamiento de stickers: fondo transparente + borde blanco + optimización WEBP
 - ✅ Diseño "TikTok Sleek" (fondo negro, estética minimalista)
 
 ## Próximos Pasos (Futuras Fases)
 
-- Integración real con Fal.ai para generación de stickers
-- Persistencia de stickers generados
-- Compartir stickers
+- Sincronización de stickers en la nube (Supabase/Firebase)
+- Compartir stickers directamente a WhatsApp
 - Sistema de autenticación
-- Más opciones de personalización
+- Más opciones de personalización (estilos, filtros)
+- Analytics y métricas de uso
 
 ## Notas
 
 - El límite diario se guarda localmente usando AsyncStorage
+- Los stickers se guardan localmente en el dispositivo (FileSystem + AsyncStorage)
 - El backend debe estar corriendo para que la app funcione completamente
 - Para dispositivos físicos, asegúrate de configurar la IP local correctamente
+- Background removal funciona offline usando el modelo U2Net (se descarga automáticamente la primera vez)
+- Fal.ai es el servicio principal para generación de imágenes (requiere API key)
+- OpenAI es opcional pero mejora la calidad de los textos generados
 
