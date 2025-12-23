@@ -1,33 +1,37 @@
 # FastAPI y servidor ASGI
-fastapi>=0.125.0
-uvicorn[standard]>=0.38.0
+fastapi>=0.125.0,<0.126.0
+uvicorn[standard]>=0.38.0,<0.39.0
 
 # Validación de datos
-pydantic>=2.12.0
-pydantic-settings>=2.0.0
+pydantic>=2.12.0,<3.0.0
+pydantic-settings>=2.0.0,<3.0.0
 
 # Variables de entorno
-python-dotenv>=1.2.0
+python-dotenv>=1.2.0,<2.0.0
 
 # Hugging Face Integration
-huggingface_hub>=1.2.0
+huggingface-hub>=1.2.0,<2.0.0
 
 # HTTP async client
-httpx>=0.28.0
+httpx>=0.28.0,<0.29.0
 
 # Fal.ai client (para generación de imágenes)
-fal-client>=0.10.0
+fal-client>=0.10.0,<0.11.0
 
 # Procesamiento de imágenes
-rembg>=2.0.0
-pillow>=10.0.0
-numpy>=1.24.0
-opencv-python-headless>=4.8.0
+rembg>=2.0.0,<3.0.0
+pillow>=10.0.0,<11.0.0
+numpy>=1.24.0,<2.0.0
+opencv-python-headless>=4.8.0,<5.0.0
 
 # OpenAI para generación de texto
-openai>=1.0.0
+openai>=1.0.0,<2.0.0
 
 # Para manejo de archivos multipart
-python-multipart>=0.0.6
+python-multipart>=0.0.6,<1.0.0
 
-onnxruntime
+# ONNX Runtime para modelos de ML
+onnxruntime>=1.16.0,<2.0.0
+
+# CORS middleware (incluido en FastAPI pero por claridad)
+# starlette>=0.27.0  # Incluido como dependencia de FastAPI

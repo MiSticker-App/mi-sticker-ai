@@ -1,252 +1,257 @@
-import * as FileSystem from "expo-file-system";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Sticker, StickerPack } from "../types/sticker";
+// lib/stickerStorage.ts
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
+import type { Sticker, StickerPack } from '../types/sticker';
+import { generateId, isToday } from './utils';
 
-const STORAGE_KEYS = {
-  PACKS: "@misticker:packs",
-  STICKERS: "@misticker:stickers",
-};
+const STICKERS_KEY = '@misticker:stickers';
+const PACKS_KEY = '@misticker:packs';
 
 /**
- * Guarda un sticker en FileSystem y registra sus metadatos en AsyncStorage
- * @param base64Data - Datos base64 de la imagen (sin prefijo data:)
- * @param packId - ID del pack al que pertenece (opcional)
- * @returns El objeto Sticker creado
+ * Guarda un sticker en el sistema de archivos y almacena sus metadatos
  */
 export async function saveSticker(
   base64Data: string,
   packId: string | null = null
 ): Promise<Sticker> {
-  // Generar ID único
-  const stickerId = `sticker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
-  // Guardar imagen en FileSystem.documentDirectory
-  const fileName = `${stickerId}.webp`;
-  const fileUri = FileSystem.documentDirectory + fileName;
+  try {
+    const stickerId = generateId();
+    const fileName = `sticker_${stickerId}.webp`;
+    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
-  await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+    // Remover el prefijo data:image si existe
+    const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
+
+    // Guardar imagen en el sistema de archivos
+    await FileSystem.writeAsStringAsync(fileUri, base64Image, {
     encoding: FileSystem.EncodingType.Base64,
   });
 
-  // Crear metadatos (SOLO URIs, IDs, fechas - NUNCA bytes o base64)
+    // Crear objeto Sticker
   const sticker: Sticker = {
     id: stickerId,
-    uri: fileUri, // Solo la ruta, no los bytes
+      uri: fileUri,
     packId,
     createdAt: new Date().toISOString(),
   };
 
   // Guardar metadatos en AsyncStorage
-  const stickersData = await getStickersMetadata();
-  stickersData[stickerId] = sticker;
-  await AsyncStorage.setItem(STORAGE_KEYS.STICKERS, JSON.stringify(stickersData));
+    const stickersData = await AsyncStorage.getItem(STICKERS_KEY);
+    const stickers = stickersData ? JSON.parse(stickersData) : {};
+    stickers[stickerId] = sticker;
+    await AsyncStorage.setItem(STICKERS_KEY, JSON.stringify(stickers));
 
   return sticker;
-}
-
-/**
- * Obtiene todos los metadatos de stickers desde AsyncStorage
- * @returns Objeto con todos los stickers (solo metadatos)
- */
-export async function getStickersMetadata(): Promise<Record<string, Sticker>> {
-  try {
-    const stored = await AsyncStorage.getItem(STORAGE_KEYS.STICKERS);
-    if (!stored) {
-      return {};
-    }
-    return JSON.parse(stored);
   } catch (error) {
-    console.error("Error loading stickers metadata:", error);
-    return {};
+    console.error('Error saving sticker:', error);
+    throw error;
   }
 }
 
 /**
- * Obtiene un sticker por ID
- * @param stickerId - ID del sticker
- * @returns El sticker o null si no existe
+ * Obtiene o crea el pack del día actual
  */
-export async function getSticker(stickerId: string): Promise<Sticker | null> {
-  const stickers = await getStickersMetadata();
-  return stickers[stickerId] || null;
+export async function getOrCreateTodayPack(): Promise<StickerPack> {
+  try {
+    const packsData = await AsyncStorage.getItem(PACKS_KEY);
+    const packs: StickerPack[] = packsData ? JSON.parse(packsData) : [];
+
+    // Buscar pack de hoy
+    const todayPack = packs.find(
+      (pack) => isToday(pack.createdAt) && pack.name.startsWith('Pack ')
+    );
+
+    if (todayPack) {
+      return todayPack;
+    }
+
+    // Crear nuevo pack del día
+    const today = new Date();
+    const packName = `Pack ${today.toISOString().split('T')[0]}`;
+    const newPack: StickerPack = {
+      id: generateId(),
+      name: packName,
+      stickerIds: [],
+      createdAt: today.toISOString(),
+    };
+
+    packs.unshift(newPack);
+    await AsyncStorage.setItem(PACKS_KEY, JSON.stringify(packs));
+
+    return newPack;
+  } catch (error) {
+    console.error('Error getting/creating today pack:', error);
+    throw error;
+  }
 }
 
 /**
- * Obtiene todos los packs desde AsyncStorage
- * @returns Array de packs
+ * Crea un pack manual con nombre personalizado
+ */
+export async function createManualPack(name: string): Promise<StickerPack> {
+  try {
+    const packsData = await AsyncStorage.getItem(PACKS_KEY);
+    const packs: StickerPack[] = packsData ? JSON.parse(packsData) : [];
+
+    const newPack: StickerPack = {
+      id: generateId(),
+      name,
+      stickerIds: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    packs.unshift(newPack);
+    await AsyncStorage.setItem(PACKS_KEY, JSON.stringify(packs));
+
+    return newPack;
+  } catch (error) {
+    console.error('Error creating manual pack:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene todos los packs
  */
 export async function getPacks(): Promise<StickerPack[]> {
   try {
-    const stored = await AsyncStorage.getItem(STORAGE_KEYS.PACKS);
-    if (!stored) {
-      return [];
-    }
-    return JSON.parse(stored);
+    const packsData = await AsyncStorage.getItem(PACKS_KEY);
+    return packsData ? JSON.parse(packsData) : [];
   } catch (error) {
-    console.error("Error loading packs:", error);
+    console.error('Error getting packs:', error);
     return [];
   }
 }
 
 /**
- * Guarda un pack en AsyncStorage
- * @param pack - El pack a guardar
+ * Obtiene un pack por su ID
  */
-export async function savePack(pack: StickerPack): Promise<void> {
+export async function getPack(packId: string): Promise<StickerPack | null> {
+  try {
   const packs = await getPacks();
-  const existingIndex = packs.findIndex((p) => p.id === pack.id);
-  
-  if (existingIndex >= 0) {
-    packs[existingIndex] = pack;
-  } else {
-    packs.push(pack);
-  }
-  
-  await AsyncStorage.setItem(STORAGE_KEYS.PACKS, JSON.stringify(packs));
-}
-
-/**
- * Crea un pack automático basado en la fecha actual
- * Si ya existe un pack para hoy, lo retorna. Si no, crea uno nuevo.
- * @returns El pack del día actual
- */
-export async function getOrCreateTodayPack(): Promise<StickerPack> {
-  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-  const packName = `Pack ${today}`;
-  
-  const packs = await getPacks();
-  const todayPack = packs.find(
-    (p) => p.name === packName || p.createdAt.startsWith(today)
-  );
-
-  if (todayPack) {
-    return todayPack;
-  }
-
-  // Crear nuevo pack para hoy
-  const newPack: StickerPack = {
-    id: `pack_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    name: packName,
-    stickerIds: [],
-    createdAt: new Date().toISOString(),
-    publisher: "MS App",
-    website: "https://tudominio.com",
-  };
-
-  await savePack(newPack);
-  return newPack;
-}
-
-/**
- * Crea un pack manual con un nombre personalizado
- * @param name - Nombre del pack
- * @returns El pack creado
- */
-export async function createManualPack(name: string): Promise<StickerPack> {
-  const pack: StickerPack = {
-    id: `pack_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    name,
-    stickerIds: [],
-    createdAt: new Date().toISOString(),
-    publisher: "MS App",
-    website: "https://tudominio.com",
-  };
-
-  await savePack(pack);
-  return pack;
-}
-
-/**
- * Añade un sticker a un pack
- * @param stickerId - ID del sticker
- * @param packId - ID del pack
- */
-export async function addStickerToPack(
-  stickerId: string,
-  packId: string
-): Promise<void> {
-  // Actualizar el sticker para que apunte al pack
-  const stickers = await getStickersMetadata();
-  if (stickers[stickerId]) {
-    stickers[stickerId].packId = packId;
-    await AsyncStorage.setItem(STORAGE_KEYS.STICKERS, JSON.stringify(stickers));
-  }
-
-  // Añadir el sticker al pack
-  const packs = await getPacks();
-  const pack = packs.find((p) => p.id === packId);
-  if (pack && !pack.stickerIds.includes(stickerId)) {
-    pack.stickerIds.push(stickerId);
-    await savePack(pack);
+    return packs.find((pack) => pack.id === packId) || null;
+  } catch (error) {
+    console.error('Error getting pack:', error);
+    return null;
   }
 }
 
 /**
  * Obtiene todos los stickers de un pack
- * @param packId - ID del pack
- * @returns Array de stickers del pack
  */
 export async function getPackStickers(packId: string): Promise<Sticker[]> {
-  const packs = await getPacks();
-  const pack = packs.find((p) => p.id === packId);
-  if (!pack) {
+  try {
+    const pack = await getPack(packId);
+    if (!pack) return [];
+
+    const stickersData = await AsyncStorage.getItem(STICKERS_KEY);
+    const allStickers = stickersData ? JSON.parse(stickersData) : {};
+
+    return pack.stickerIds
+      .map((id) => allStickers[id])
+      .filter((sticker) => sticker !== undefined);
+  } catch (error) {
+    console.error('Error getting pack stickers:', error);
     return [];
   }
-
-  const stickers = await getStickersMetadata();
-  return pack.stickerIds
-    .map((id) => stickers[id])
-    .filter((sticker): sticker is Sticker => sticker !== undefined);
 }
 
 /**
- * Elimina un sticker (tanto el archivo como los metadatos)
- * @param stickerId - ID del sticker a eliminar
+ * Añade un sticker a un pack
+ */
+export async function addStickerToPack(
+  stickerId: string,
+  packId: string
+): Promise<void> {
+  try {
+    const packsData = await AsyncStorage.getItem(PACKS_KEY);
+    const packs: StickerPack[] = packsData ? JSON.parse(packsData) : [];
+
+    const packIndex = packs.findIndex((pack) => pack.id === packId);
+    if (packIndex === -1) {
+      throw new Error('Pack not found');
+    }
+
+    if (!packs[packIndex].stickerIds.includes(stickerId)) {
+      packs[packIndex].stickerIds.push(stickerId);
+      await AsyncStorage.setItem(PACKS_KEY, JSON.stringify(packs));
+    }
+
+    // Actualizar packId del sticker
+    const stickersData = await AsyncStorage.getItem(STICKERS_KEY);
+    const stickers = stickersData ? JSON.parse(stickersData) : {};
+  if (stickers[stickerId]) {
+    stickers[stickerId].packId = packId;
+      await AsyncStorage.setItem(STICKERS_KEY, JSON.stringify(stickers));
+    }
+  } catch (error) {
+    console.error('Error adding sticker to pack:', error);
+    throw error;
+  }
+}
+
+/**
+ * Elimina un sticker del sistema de archivos y de los metadatos
  */
 export async function deleteSticker(stickerId: string): Promise<void> {
-  const stickers = await getStickersMetadata();
+  try {
+    // Obtener sticker
+    const stickersData = await AsyncStorage.getItem(STICKERS_KEY);
+    const stickers = stickersData ? JSON.parse(stickersData) : {};
   const sticker = stickers[stickerId];
   
-  if (sticker) {
-    // Eliminar archivo del FileSystem
-    try {
-      const fileInfo = await FileSystem.getInfoAsync(sticker.uri);
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(sticker.uri, { idempotent: true });
-      }
-    } catch (error) {
-      console.error("Error deleting sticker file:", error);
+    if (!sticker) {
+      throw new Error('Sticker not found');
     }
 
-    // Eliminar de los packs
-    const packs = await getPacks();
-    for (const pack of packs) {
-      pack.stickerIds = pack.stickerIds.filter((id) => id !== stickerId);
-      await savePack(pack);
-    }
+    // Eliminar archivo
+    await FileSystem.deleteAsync(sticker.uri, { idempotent: true });
 
-    // Eliminar metadatos
+    // Eliminar de metadatos
     delete stickers[stickerId];
-    await AsyncStorage.setItem(STORAGE_KEYS.STICKERS, JSON.stringify(stickers));
+    await AsyncStorage.setItem(STICKERS_KEY, JSON.stringify(stickers));
+
+    // Eliminar del pack
+    if (sticker.packId) {
+      const packsData = await AsyncStorage.getItem(PACKS_KEY);
+      const packs: StickerPack[] = packsData ? JSON.parse(packsData) : [];
+
+      const packIndex = packs.findIndex((pack) => pack.id === sticker.packId);
+      if (packIndex !== -1) {
+        packs[packIndex].stickerIds = packs[packIndex].stickerIds.filter(
+          (id) => id !== stickerId
+        );
+        await AsyncStorage.setItem(PACKS_KEY, JSON.stringify(packs));
+      }
+    }
+  } catch (error) {
+    console.error('Error deleting sticker:', error);
+    throw error;
   }
 }
 
 /**
- * Elimina un pack (no elimina los stickers, solo los quita del pack)
- * @param packId - ID del pack a eliminar
+ * Elimina un pack y todos sus stickers
  */
 export async function deletePack(packId: string): Promise<void> {
-  const packs = await getPacks();
-  const filteredPacks = packs.filter((p) => p.id !== packId);
-  await AsyncStorage.setItem(STORAGE_KEYS.PACKS, JSON.stringify(filteredPacks));
-
-  // Remover referencia del pack en los stickers
-  const stickers = await getStickersMetadata();
-  for (const stickerId in stickers) {
-    if (stickers[stickerId].packId === packId) {
-      stickers[stickerId].packId = null;
+  try {
+    const pack = await getPack(packId);
+    if (!pack) {
+      throw new Error('Pack not found');
     }
-  }
-  await AsyncStorage.setItem(STORAGE_KEYS.STICKERS, JSON.stringify(stickers));
-}
 
+    // Eliminar todos los stickers del pack
+    for (const stickerId of pack.stickerIds) {
+      await deleteSticker(stickerId);
+    }
+
+    // Eliminar pack
+    const packsData = await AsyncStorage.getItem(PACKS_KEY);
+    const packs: StickerPack[] = packsData ? JSON.parse(packsData) : [];
+    const updatedPacks = packs.filter((p) => p.id !== packId);
+    await AsyncStorage.setItem(PACKS_KEY, JSON.stringify(updatedPacks));
+  } catch (error) {
+    console.error('Error deleting pack:', error);
+    throw error;
+  }
+}

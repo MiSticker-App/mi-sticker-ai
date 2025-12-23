@@ -1,29 +1,34 @@
-import { View, Image, Text } from "react-native";
-import { cn } from "../lib/utils";
+// components/StickerPreview.tsx
+import React from 'react';
+import { View, Image, Text, type ViewProps } from 'react-native';
+import { cn } from '../lib/utils';
 
-interface StickerPreviewProps {
+interface StickerPreviewProps extends ViewProps {
   imageUrl?: string | null;
-  className?: string;
 }
 
-export function StickerPreview({ imageUrl, className }: StickerPreviewProps) {
+export function StickerPreview({
+  imageUrl,
+  className,
+  ...props
+}: StickerPreviewProps) {
   return (
     <View
       className={cn(
-        "w-full max-w-sm aspect-square bg-zinc-900 border border-zinc-700 rounded-3xl items-center justify-center overflow-hidden",
+        'aspect-square rounded-3xl bg-zinc-900 border-2 border-zinc-700 items-center justify-center overflow-hidden',
         className
       )}
+      {...props}
     >
       {imageUrl ? (
         <Image
           source={{ uri: imageUrl }}
           className="w-full h-full"
-          resizeMode="contain"
+          resizeMode="cover"
         />
       ) : (
-        <Text className="text-zinc-500 text-lg">Preview</Text>
+        <Text className="text-zinc-600 text-sm">Preview</Text>
       )}
     </View>
   );
 }
-

@@ -1,58 +1,59 @@
-import { Pressable, Text, ActivityIndicator } from "react-native";
-import { cn } from "../lib/utils";
+// components/Button.tsx
+import React from 'react';
+import {
+  TouchableOpacity,
+  Text,
+  ActivityIndicator,
+  type TouchableOpacityProps,
+} from 'react-native';
+import { cn } from '../lib/utils';
 
-interface ButtonProps {
-  variant?: "primary" | "secondary" | "outline";
-  onPress: () => void;
-  children: React.ReactNode;
-  disabled?: boolean;
+interface ButtonProps extends TouchableOpacityProps {
+  variant?: 'primary' | 'secondary' | 'outline';
   loading?: boolean;
-  className?: string;
+  children: React.ReactNode;
 }
 
 export function Button({
-  variant = "primary",
-  onPress,
-  children,
-  disabled = false,
+  variant = 'primary',
   loading = false,
+  disabled,
+  children,
   className,
+  ...props
 }: ButtonProps) {
-  const baseClasses = "rounded-full px-6 py-3 font-bold items-center justify-center";
-  const variantClasses =
-    variant === "primary"
-      ? "bg-white text-black"
-      : variant === "outline"
-      ? "bg-transparent border-2 border-white text-white"
-      : "bg-zinc-800 text-white";
+  const isDisabled = disabled || loading;
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled || loading}
+    <TouchableOpacity
+      disabled={isDisabled}
       className={cn(
-        baseClasses,
-        variantClasses,
-        (disabled || loading) && "opacity-50",
+        'px-6 py-4 rounded-2xl items-center justify-center',
+        variant === 'primary' && 'bg-white',
+        variant === 'secondary' && 'bg-zinc-800',
+        variant === 'outline' && 'bg-transparent border-2 border-white',
+        isDisabled && 'opacity-50',
         className
       )}
+      activeOpacity={0.8}
+      {...props}
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === "primary" ? "#000000" : "#ffffff"}
-          size="small"
+          color={variant === 'primary' ? '#000000' : '#ffffff'}
         />
       ) : (
         <Text
           className={cn(
-            "font-bold",
-            variant === "primary" ? "text-black" : "text-white"
+            'font-bold text-lg',
+            variant === 'primary' && 'text-black',
+            variant === 'secondary' && 'text-white',
+            variant === 'outline' && 'text-white'
           )}
         >
           {children}
         </Text>
       )}
-    </Pressable>
+    </TouchableOpacity>
   );
 }
-

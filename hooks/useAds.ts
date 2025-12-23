@@ -1,300 +1,190 @@
-import { useEffect, useRef } from "react";
+// hooks/useAds.ts
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import mobileAds, {
   InterstitialAd,
   RewardedAd,
   AdEventType,
   RewardedAdEventType,
   AdsConsent,
-} from "react-native-google-mobile-ads";
+  AdsConsentStatus,
+} from 'react-native-google-mobile-ads';
 
-// Test ID de AdMob para Interstitial
-const INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
-// Test ID de AdMob para Rewarded Ad
-const REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
+// Test IDs de AdMob
+const INTERSTITIAL_AD_ID =
+  Platform.OS === 'ios'
+    ? 'ca-app-pub-3940256099942544/4411468910'
+    : 'ca-app-pub-3940256099942544/1033173712';
+
+const REWARDED_AD_ID =
+  Platform.OS === 'ios'
+    ? 'ca-app-pub-3940256099942544/1712485313'
+    : 'ca-app-pub-3940256099942544/5224354917';
 
 let interstitialAd: InterstitialAd | null = null;
 let rewardedAd: RewardedAd | null = null;
-let isInitialized = false;
 
 /**
- * Inicializa el SDK de AdMob y carga el Interstitial Ad
- * Implementa el flujo UMP (User Messaging Platform) de Google para consentimiento GDPR
+ * Hook para manejar la inicialización y uso de anuncios AdMob
  */
-async function initializeAds() {
-  if (isInitialized) return;
+export function useAds() {
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInterstitialLoaded, setIsInterstitialLoaded] = useState(false);
+  const [isRewardedLoaded, setIsRewardedLoaded] = useState(false);
 
-  try {
-    // Fase 1: Solicitar actualización de información de consentimiento
+  useEffect(() => {
+    initializeAds();
+  }, []);
+
+  /**
+   * Inicializa AdMob y solicita consentimiento UMP (GDPR)
+   */
+  const initializeAds = async () => {
     try {
+      // Solicitar consentimiento UMP
       const consentInfo = await AdsConsent.requestInfoUpdate();
-      console.log("Consent Info Status:", consentInfo.status);
-
-      // Fase 2: Cargar y mostrar el formulario de consentimiento si es requerido
-      if (consentInfo.isConsentFormAvailable) {
-        const formResult = await AdsConsent.loadAndShowConsentFormIfRequired();
-        console.log("Consent Form Result:", formResult);
+      
+      if (
+        consentInfo.status === AdsConsentStatus.REQUIRED ||
+        consentInfo.status === AdsConsentStatus.UNKNOWN
+      ) {
+        await AdsConsent.showForm();
       }
-    } catch (consentError) {
-      console.error("Error en el flujo de consentimiento UMP:", consentError);
-      // Fail-open: continuar con la inicialización aunque falle el consentimiento
-    }
 
-    // Fase 3: Inicializar mobileAds después del consentimiento
+      // Inicializar AdMob
     await mobileAds().initialize();
-    isInitialized = true;
 
-    // Crear y cargar el Interstitial Ad
-    interstitialAd = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID, {
-      requestNonPersonalizedAdsOnly: true,
-    });
+      // Cargar anuncios
+      loadInterstitialAd();
+      loadRewardedAd();
 
-    // Cargar el anuncio
-    await interstitialAd.load();
-
-    // Crear y cargar el Rewarded Ad
-    rewardedAd = RewardedAd.createForAdRequest(REWARDED_AD_UNIT_ID, {
-      requestNonPersonalizedAdsOnly: true,
-    });
-
-    // Cargar el anuncio recompensado
-    await rewardedAd.load();
+      setIsInitialized(true);
   } catch (error) {
-    console.error("Error inicializando AdMob:", error);
-    // Fail-open: continuar aunque falle la inicialización
-  }
-}
-
-/**
- * Muestra el Interstitial Ad y retorna una Promise que se resuelve cuando el usuario cierra el anuncio
- */
-export async function showInterstitial(): Promise<void> {
-  return new Promise((resolve) => {
-    // Si no está inicializado, inicializar primero
-    if (!isInitialized) {
-      initializeAds().then(() => {
-        showInterstitial().then(resolve);
-      });
-      return;
+      console.error('Error initializing ads:', error);
+      setIsInitialized(true); // Continuar sin anuncios en caso de error
     }
+  };
 
-    // Si no hay anuncio cargado, intentar cargar uno nuevo
-    if (!interstitialAd) {
-      try {
-        interstitialAd = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID, {
-          requestNonPersonalizedAdsOnly: true,
-        });
-        interstitialAd.load();
-      } catch (error) {
-        console.error("Error creando Interstitial Ad:", error);
-        // Fail-open: resolver inmediatamente si falla
-        resolve();
-        return;
-      }
-    }
+  /**
+   * Carga un nuevo anuncio intersticial
+   */
+  const loadInterstitialAd = () => {
+    interstitialAd = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_ID);
 
-    try {
-      // Verificar si el anuncio está cargado
-      if (!interstitialAd.loaded) {
-        // Si no está cargado, esperar a que se cargue o resolver inmediatamente
         const unsubscribeLoaded = interstitialAd.addAdEventListener(
           AdEventType.LOADED,
           () => {
-            unsubscribeLoaded();
-            showAd();
-          }
-        );
-
-        // Timeout: si no se carga en 3 segundos, continuar sin mostrar anuncio
-        setTimeout(() => {
-          unsubscribeLoaded();
-          resolve();
-        }, 3000);
-
-        // Intentar cargar si no está cargando
-        if (!interstitialAd.loading) {
-          interstitialAd.load();
-        }
-        return;
+        setIsInterstitialLoaded(true);
       }
+    );
 
-      showAd();
-
-      function showAd() {
-        if (!interstitialAd) {
-          resolve();
-          return;
-        }
-
-        // Escuchar cuando el anuncio se cierra
         const unsubscribeClosed = interstitialAd.addAdEventListener(
           AdEventType.CLOSED,
           () => {
-            unsubscribeClosed();
-            // Crear un nuevo anuncio para la próxima vez
-            interstitialAd = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID, {
-              requestNonPersonalizedAdsOnly: true,
-            });
-            interstitialAd.load();
-            resolve();
-          }
-        );
-
-        // Escuchar errores
-        const unsubscribeError = interstitialAd.addAdEventListener(
-          AdEventType.ERROR,
-          () => {
-            unsubscribeError();
-            unsubscribeClosed();
-            // Fail-open: resolver aunque haya error
-            resolve();
-          }
-        );
-
-        // Mostrar el anuncio
-        interstitialAd.show().catch((error) => {
-          console.error("Error mostrando Interstitial Ad:", error);
-          unsubscribeClosed();
-          unsubscribeError();
-          // Fail-open: resolver aunque falle
-          resolve();
-        });
+        setIsInterstitialLoaded(false);
+        // Cargar nuevo anuncio para la próxima vez
+        loadInterstitialAd();
       }
-    } catch (error) {
-      console.error("Error en showInterstitial:", error);
-      // Fail-open: resolver aunque haya error
-      resolve();
-    }
-  });
-}
+    );
 
-/**
- * Muestra el Rewarded Ad y retorna una Promise<boolean> que se resuelve cuando el usuario completa el anuncio
- * Retorna true si el usuario vio el anuncio completo y recibió la recompensa, false en caso contrario
- */
-export async function showRewardedAd(): Promise<boolean> {
-  return new Promise((resolve) => {
-    // Si no está inicializado, inicializar primero
-    if (!isInitialized) {
-      initializeAds().then(() => {
-        showRewardedAd().then(resolve);
-      });
+    interstitialAd.load();
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeClosed();
+    };
+  };
+
+  /**
+   * Carga un nuevo anuncio con recompensa
+   */
+  const loadRewardedAd = () => {
+    rewardedAd = RewardedAd.createForAdRequest(REWARDED_AD_ID);
+
+    const unsubscribeLoaded = rewardedAd.addAdEventListener(
+      RewardedAdEventType.LOADED,
+          () => {
+        setIsRewardedLoaded(true);
+      }
+    );
+
+    const unsubscribeClosed = rewardedAd.addAdEventListener(
+      AdEventType.CLOSED,
+      () => {
+        setIsRewardedLoaded(false);
+        // Cargar nuevo anuncio para la próxima vez
+        loadRewardedAd();
+      }
+    );
+
+    rewardedAd.load();
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeClosed();
+    };
+  };
+
+  /**
+   * Muestra un anuncio intersticial
+   */
+  const showInterstitial = async (): Promise<void> => {
+    if (!interstitialAd || !isInterstitialLoaded) {
+      console.log('Interstitial ad not ready');
       return;
     }
 
-    // Si no hay anuncio cargado, intentar cargar uno nuevo
-    if (!rewardedAd) {
       try {
-        rewardedAd = RewardedAd.createForAdRequest(REWARDED_AD_UNIT_ID, {
-          requestNonPersonalizedAdsOnly: true,
-        });
-        rewardedAd.load();
+      await interstitialAd.show();
       } catch (error) {
-        console.error("Error creando Rewarded Ad:", error);
-        // Fail-open: resolver con false si falla
+      console.error('Error showing interstitial ad:', error);
+    }
+  };
+
+  /**
+   * Muestra un anuncio con recompensa
+   * @returns Promise<boolean> - true si el usuario vio el anuncio completo
+   */
+  const showRewardedAd = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!rewardedAd || !isRewardedLoaded) {
+        console.log('Rewarded ad not ready');
         resolve(false);
         return;
       }
-    }
 
-    try {
-      // Verificar si el anuncio está cargado
-      if (!rewardedAd.loaded) {
-        // Si no está cargado, esperar a que se cargue o resolver inmediatamente
-        const unsubscribeLoaded = rewardedAd.addAdEventListener(
-          RewardedAdEventType.LOADED,
+      let rewarded = false;
+
+      const unsubscribeEarned = rewardedAd.addAdEventListener(
+        RewardedAdEventType.EARNED_REWARD,
           () => {
-            unsubscribeLoaded();
-            showAd();
-          }
-        );
-
-        // Timeout: si no se carga en 5 segundos, continuar sin mostrar anuncio
-        setTimeout(() => {
-          unsubscribeLoaded();
-          resolve(false);
-        }, 5000);
-
-        // Intentar cargar si no está cargando
-        if (!rewardedAd.loading) {
-          rewardedAd.load();
+          rewarded = true;
         }
-        return;
-      }
+      );
 
-      showAd();
-
-      function showAd() {
-        if (!rewardedAd) {
-          resolve(false);
-          return;
-        }
-
-        let rewardGranted = false;
-
-        // Escuchar cuando el usuario recibe la recompensa
-        const unsubscribeRewarded = rewardedAd.addAdEventListener(
-          RewardedAdEventType.EARNED_REWARD,
-          () => {
-            rewardGranted = true;
-          }
-        );
-
-        // Escuchar cuando el anuncio se cierra
         const unsubscribeClosed = rewardedAd.addAdEventListener(
-          RewardedAdEventType.CLOSED,
+        AdEventType.CLOSED,
           () => {
-            unsubscribeRewarded();
+          unsubscribeEarned();
             unsubscribeClosed();
-            // Crear un nuevo anuncio para la próxima vez
-            rewardedAd = RewardedAd.createForAdRequest(REWARDED_AD_UNIT_ID, {
-              requestNonPersonalizedAdsOnly: true,
-            });
-            rewardedAd.load();
-            resolve(rewardGranted);
-          }
-        );
+          resolve(rewarded);
+        }
+      );
 
-        // Escuchar errores
-        const unsubscribeError = rewardedAd.addAdEventListener(
-          RewardedAdEventType.ERROR,
-          () => {
-            unsubscribeRewarded();
-            unsubscribeClosed();
-            unsubscribeError();
-            // Fail-open: resolver con false aunque haya error
-            resolve(false);
-          }
-        );
-
-        // Mostrar el anuncio
         rewardedAd.show().catch((error) => {
-          console.error("Error mostrando Rewarded Ad:", error);
-          unsubscribeRewarded();
+        console.error('Error showing rewarded ad:', error);
+        unsubscribeEarned();
           unsubscribeClosed();
-          unsubscribeError();
-          // Fail-open: resolver con false aunque falle
           resolve(false);
         });
-      }
-    } catch (error) {
-      console.error("Error en showRewardedAd:", error);
-      // Fail-open: resolver con false aunque haya error
-      resolve(false);
-    }
-  });
+    });
+  };
+
+  return {
+    isInitialized,
+    isInterstitialLoaded,
+    isRewardedLoaded,
+    showInterstitial,
+    showRewardedAd,
+  };
 }
-
-/**
- * Hook para inicializar AdMob al montar el componente
- */
-export function useAds() {
-  const hasInitialized = useRef(false);
-
-  useEffect(() => {
-    if (!hasInitialized.current) {
-      hasInitialized.current = true;
-      initializeAds();
-    }
-  }, []);
-}
-

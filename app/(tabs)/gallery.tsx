@@ -1,181 +1,184 @@
-import { useState, useEffect } from "react";
-import { View, Text, FlatList, Image, Pressable, Alert, TextInput } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { StickerPack, Sticker } from "../../types/sticker";
-import { getPacks, getPackStickers, createManualPack } from "../../lib/stickerStorage";
-import { Plus } from "lucide-react-native";
+// app/(tabs)/gallery.tsx
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+  Modal,
+  TextInput,
+} from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { Plus, Grid as GridIcon } from 'lucide-react-native';
+import { StickerPreview } from '../../components/StickerPreview';
+import { getPacks, getPackStickers, createManualPack } from '../../lib/stickerStorage';
+import type { StickerPack } from '../../types/sticker';
 
 interface PackWithPreview extends StickerPack {
-  previewUri?: string;
-  stickerCount: number;
+  previewUri?: string | null;
+}
+
+function PackItem({ item, onPress }: { item: PackWithPreview; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      className="flex-1 m-2"
+      activeOpacity={0.8}
+    >
+      <View className="aspect-square rounded-3xl overflow-hidden bg-zinc-900 border border-zinc-800">
+        <StickerPreview imageUrl={item.previewUri} className="w-full h-full border-0" />
+        <View className="absolute bottom-0 left-0 right-0 bg-black/70 p-4">
+          <Text className="text-white font-bold truncate">{item.name}</Text>
+          <Text className="text-zinc-400 text-sm">
+            {item.stickerIds.length} stickers
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 export default function GalleryScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [packs, setPacks] = useState<PackWithPreview[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showCreatePack, setShowCreatePack] = useState(false);
-  const [newPackName, setNewPackName] = useState("");
-
-  useEffect(() => {
-    loadPacks();
-  }, []);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showNewPackModal, setShowNewPackModal] = useState(false);
+  const [newPackName, setNewPackName] = useState('');
 
   const loadPacks = async () => {
     try {
       const loadedPacks = await getPacks();
-      // Ordenar por fecha (más recientes primero)
-      loadedPacks.sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      
-      // Cargar previews y contadores para cada pack
+      // Cargar previews para cada pack
       const packsWithPreviews: PackWithPreview[] = await Promise.all(
         loadedPacks.map(async (pack) => {
-          const packStickers = await getPackStickers(pack.id);
-          const firstSticker = packStickers[0];
+          if (pack.stickerIds.length > 0) {
+            const stickers = await getPackStickers(pack.id);
           return {
             ...pack,
-            previewUri: firstSticker?.uri,
-            stickerCount: packStickers.length,
+              previewUri: stickers[0]?.uri || null,
           };
+          }
+          return { ...pack, previewUri: null };
         })
       );
-      
       setPacks(packsWithPreviews);
     } catch (error) {
-      console.error("Error loading packs:", error);
-    } finally {
-      setIsLoading(false);
+      console.error('Error loading packs:', error);
+      Alert.alert('Error', 'No se pudieron cargar los packs');
     }
   };
 
-  const handlePackPress = (packId: string) => {
-    router.push({
-      pathname: "/(tabs)/pack-detail",
-      params: { packId },
-    });
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadPacks();
+    setRefreshing(false);
   };
 
-  const handleCreatePack = async () => {
+  const createPack = async () => {
     if (!newPackName.trim()) {
-      Alert.alert("Error", "Por favor ingresa un nombre para el pack");
+      Alert.alert('Atención', 'Escribe un nombre para el pack');
       return;
     }
 
     try {
       await createManualPack(newPackName.trim());
-      setNewPackName("");
-      setShowCreatePack(false);
+      setShowNewPackModal(false);
+      setNewPackName('');
       await loadPacks();
-      Alert.alert("Éxito", "Pack creado correctamente");
     } catch (error) {
-      console.error("Error creating pack:", error);
-      Alert.alert("Error", "No se pudo crear el pack");
+      console.error('Error creating pack:', error);
+      Alert.alert('Error', 'No se pudo crear el pack');
     }
   };
 
-  const renderPackItem = ({ item }: { item: PackWithPreview }) => {
-    return (
-      <Pressable
-        onPress={() => handlePackPress(item.id)}
-        className="flex-1 m-2"
-        style={{ minWidth: "45%" }}
-      >
-        <View className="aspect-square rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-700">
-          {item.previewUri ? (
-        <Image
-              source={{ uri: item.previewUri }}
-          className="w-full h-full"
-          resizeMode="cover"
-        />
-          ) : (
-            <View className="w-full h-full items-center justify-center">
-              <Text className="text-zinc-500 text-sm">Vacío</Text>
-            </View>
-          )}
-          <View className="absolute bottom-0 left-0 right-0 bg-black/70 px-3 py-2">
-            <Text className="text-white font-bold text-sm" numberOfLines={1}>
-              {item.name}
-            </Text>
-            <Text className="text-zinc-400 text-xs">
-              {item.stickerCount} {item.stickerCount === 1 ? "sticker" : "stickers"}
-            </Text>
-          </View>
-      </View>
-    </Pressable>
+  useFocusEffect(
+    useCallback(() => {
+      loadPacks();
+    }, [])
   );
-  };
+
+  const renderPack = ({ item }: { item: PackWithPreview }) => (
+    <PackItem
+      item={item}
+      onPress={() => router.push(`/(tabs)/pack-detail?packId=${item.id}`)}
+    />
+  );
 
   return (
-    <View className="flex-1 bg-black" style={{ paddingTop: insets.top }}>
-      <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-        <Text className="text-white text-3xl font-bold">Mis Stickers</Text>
-        <Pressable
-          onPress={() => setShowCreatePack(true)}
-          className="w-10 h-10 rounded-full bg-zinc-800 items-center justify-center"
-        >
-          <Plus size={24} color="#ffffff" />
-        </Pressable>
+    <View className="flex-1 bg-black">
+      <View className="p-6 border-b border-zinc-900">
+        <View className="flex-row items-center justify-between">
+          <Text className="text-white text-2xl font-bold">My Packs</Text>
+          <TouchableOpacity
+            onPress={() => setShowNewPackModal(true)}
+            className="w-12 h-12 rounded-full bg-purple-500 items-center justify-center"
+            activeOpacity={0.8}
+          >
+            <Plus size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {showCreatePack && (
-        <View className="px-4 py-4 bg-zinc-900 border-b border-zinc-800">
+      <FlatList
+        data={packs}
+        renderItem={renderPack}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        contentContainerStyle={{ padding: 16 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#a855f7" />
+        }
+        ListEmptyComponent={
+          <View className="items-center justify-center py-20">
+            <GridIcon size={64} color="#3f3f46" />
+            <Text className="text-zinc-500 text-lg mt-4">No packs yet</Text>
+            <Text className="text-zinc-600 text-sm mt-2">Create stickers to build your collection</Text>
+          </View>
+        }
+      />
+
+      {/* New Pack Modal */}
+      <Modal
+        visible={showNewPackModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNewPackModal(false)}
+      >
+        <View className="flex-1 bg-black/80 items-center justify-center p-6">
+          <View className="bg-zinc-900 rounded-3xl p-6 w-full max-w-md border border-zinc-800">
+            <Text className="text-white text-xl font-bold mb-4">New Pack</Text>
           <TextInput
             value={newPackName}
             onChangeText={setNewPackName}
-            placeholder="Nombre del pack"
-            placeholderTextColor="#a1a1aa"
-            className="bg-zinc-800 text-white rounded-xl px-4 py-3 mb-3"
+              placeholder="Pack name..."
+              placeholderTextColor="#52525b"
+              className="w-full bg-zinc-800 text-white rounded-xl px-4 py-3 border border-zinc-700 mb-4"
             autoFocus
           />
-          <View className="flex-row gap-2">
-            <Pressable
+            <View className="flex-row gap-3">
+              <TouchableOpacity
               onPress={() => {
-                setShowCreatePack(false);
-                setNewPackName("");
-              }}
-              className="flex-1 bg-zinc-700 rounded-xl px-4 py-3 items-center"
-            >
-              <Text className="text-white font-bold">Cancelar</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleCreatePack}
-              className="flex-1 bg-white rounded-xl px-4 py-3 items-center"
-            >
-              <Text className="text-black font-bold">Crear</Text>
-            </Pressable>
+                  setShowNewPackModal(false);
+                  setNewPackName('');
+                }}
+                className="flex-1 py-3 rounded-xl bg-zinc-800 items-center"
+                activeOpacity={0.8}
+              >
+                <Text className="text-white font-bold">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={createPack}
+                className="flex-1 py-3 rounded-xl bg-purple-500 items-center"
+                activeOpacity={0.8}
+              >
+                <Text className="text-white font-bold">Create</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      )}
-
-      {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-zinc-400">Cargando packs...</Text>
-        </View>
-      ) : packs.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-4">
-          <Text className="text-zinc-400 text-center mb-4">
-            No tienes packs todavía
-          </Text>
-          <Text className="text-zinc-500 text-sm text-center">
-            Crea stickers para generar packs automáticamente
-          </Text>
-        </View>
-      ) : (
-      <FlatList
-          data={packs}
-          renderItem={renderPackItem}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={{ padding: 4 }}
-        showsVerticalScrollIndicator={false}
-          onRefresh={loadPacks}
-          refreshing={isLoading}
-      />
-      )}
+      </Modal>
     </View>
   );
 }

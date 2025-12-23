@@ -1,48 +1,51 @@
-import { useState } from "react";
+// app/(tabs)/create.tsx
+import React, { useState } from 'react';
 import {
   View,
-  Text,
   TextInput,
-  ScrollView,
   Alert,
-  Pressable,
-  Image,
-} from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import { Sparkles, Camera } from "lucide-react-native";
-import { useRouter } from "expo-router";
-import { Button } from "../../components/Button";
-import { useDailyLimit } from "../../hooks/useDailyLimit";
-import { api } from "../../lib/api";
-import { cn } from "../../lib/utils";
-import { useAds, showInterstitial, showRewardedAd } from "../../hooks/useAds";
-import * as FileSystem from "expo-file-system";
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  Text,
+  ActivityIndicator,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { Sparkles, Upload, Wand2, Zap } from 'lucide-react-native';
+import { Button } from '../../components/Button';
+import { StickerPreview } from '../../components/StickerPreview';
+import { useDailyLimit } from '../../hooks/useDailyLimit';
+import { useAds } from '../../hooks/useAds';
+import { api } from '../../lib/api';
+import { saveSticker, getOrCreateTodayPack, addStickerToPack } from '../../lib/stickerStorage';
 
 export default function CreateScreen() {
   const router = useRouter();
-  const [prompt, setPrompt] = useState("");
-  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isLoadingMagic, setIsLoadingMagic] = useState(false);
   const { remaining, limit, canUse, consume, addCredits } = useDailyLimit();
-  const [isWatchingAd, setIsWatchingAd] = useState(false);
-  
-  // Inicializar AdMob
-  useAds();
+  const { showInterstitial, showRewardedAd } = useAds();
 
-  const handlePickImage = async () => {
+  const [prompt, setPrompt] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingText, setIsGeneratingText] = useState(false);
+
+  /**
+   * Selecciona una imagen de la galería
+   */
+  const selectImage = async () => {
     try {
-      // Solicitar permisos
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
+      
+      if (status !== 'granted') {
         Alert.alert(
-          "Permisos necesarios",
-          "Necesitamos acceso a tu galería para seleccionar una imagen."
+          'Permiso Requerido',
+          'Necesitamos acceso a tu galería para seleccionar imágenes'
         );
         return;
       }
 
-      // Abrir selector de imágenes
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -51,232 +54,228 @@ export default function CreateScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImageUri(result.assets[0].uri);
+        setSelectedImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error("Error seleccionando imagen:", error);
-      Alert.alert("Error", "No se pudo seleccionar la imagen");
+      console.error('Error selecting image:', error);
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
     }
   };
 
-  const handleGenerate = async () => {
-    // Validar prompt e imagen
-    if (!prompt.trim()) {
-      Alert.alert("Error", "Por favor ingresa un texto para el sticker");
+  /**
+   * Genera texto con IA
+   */
+  const generateText = async () => {
+    if (!selectedImage) {
+      Alert.alert('Atención', 'Primero selecciona una imagen');
       return;
     }
 
-    if (!selectedImageUri) {
-      Alert.alert("Error", "Por favor selecciona una imagen");
+    setIsGeneratingText(true);
+    try {
+      const response = await api.generateText(
+        'Generate a funny meme caption in Spanish'
+      );
+      setPrompt(response.text);
+    } catch (error) {
+      console.error('Error generating text:', error);
+      Alert.alert('Error', 'No se pudo generar el texto');
+    } finally {
+      setIsGeneratingText(false);
+    }
+  };
+
+  /**
+   * Genera el sticker con IA
+   */
+  const generateSticker = async () => {
+    if (!prompt.trim()) {
+      Alert.alert('Atención', 'Escribe una descripción para tu sticker');
+      return;
+    }
+
+    if (!selectedImage) {
+      Alert.alert('Atención', 'Selecciona una imagen primero');
       return;
     }
 
     if (!canUse()) {
       Alert.alert(
-        "Límite alcanzado",
-        "Has alcanzado tu límite diario de 5 generaciones. Vuelve mañana."
+        'Sin Créditos',
+        'Has alcanzado el límite diario. Ve un video para desbloquear más créditos.'
       );
       return;
     }
 
     setIsGenerating(true);
     try {
+      // Consumir crédito
       const consumed = await consume();
       if (!consumed) {
-        Alert.alert("Error", "No se pudo registrar el uso. Intenta de nuevo.");
-        setIsGenerating(false);
+        Alert.alert('Error', 'No se pudo consumir el crédito');
         return;
       }
 
-      // Preparar anuncio en background mientras se hace la llamada API
-      const adPromise = showInterstitial();
+      // Generar sticker con la API
+      const response = await api.generateMeme(prompt, selectedImage);
 
-      // Llamar a API /generate/meme con FormData
-      const response = await api.generateMeme(prompt, selectedImageUri);
-
-      // Guardar base64 en archivo temporal usando FileSystem
-      const fileName = `sticker_temp_${Date.now()}.webp`;
-      const fileUri = FileSystem.cacheDirectory + fileName;
-      
-      // El backend devuelve base64 sin el prefijo data:image/webp;base64,
-      // así que lo añadimos si no está presente
-      let base64String = response.image_base64;
-      if (!base64String.startsWith("data:")) {
-        base64String = `data:image/webp;base64,${base64String}`;
+      if (!response.success || !response.image_base64) {
+        throw new Error(response.message || 'Error al generar sticker');
       }
 
-      // Extraer solo el base64 sin el prefijo para guardarlo
-      const base64Data = base64String.includes(",")
-        ? base64String.split(",")[1]
-        : base64String;
+      // Guardar sticker localmente
+      const todayPack = await getOrCreateTodayPack();
+      const sticker = await saveSticker(response.image_base64, todayPack.id);
+      await addStickerToPack(sticker.id, todayPack.id);
 
-      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      // Mostrar anuncio intersticial
+      await showInterstitial();
 
-      // Mostrar Interstitial Ad
-      await adPromise;
-
-      // Navegar a pantalla de resultado con la URI del archivo
+      // Navegar a resultado
       router.push({
-        pathname: "/(tabs)/result",
-        params: { imageUri: fileUri },
+        pathname: '/(tabs)/result',
+        params: { imageUri: sticker.uri },
       });
+
+      // Limpiar formulario
+      setPrompt('');
+      setSelectedImage(null);
     } catch (error) {
-      console.error("Error generating sticker:", error);
+      console.error('Error generating sticker:', error);
       Alert.alert(
-        "Error",
-        error instanceof Error
-          ? error.message
-          : "No se pudo generar el sticker. Verifica que el backend esté corriendo."
+        'Error',
+        'No se pudo generar el sticker. Verifica tu conexión e intenta nuevamente.'
       );
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleMagicText = async () => {
-    const context = prompt.trim() || "Gato mirando de reojo";
-    setIsLoadingMagic(true);
-    try {
-      const response = await api.generateText(context);
-      setPrompt(response.text);
-    } catch (error) {
-      console.error("Error getting magic text:", error);
-      Alert.alert(
-        "Error",
-        error instanceof Error
-          ? error.message
-          : "No se pudo generar el texto mágico. Verifica que el backend esté corriendo."
-      );
-    } finally {
-      setIsLoadingMagic(false);
-    }
-  };
-
-  const handleWatchRewardedAd = async () => {
-    setIsWatchingAd(true);
+  /**
+   * Desbloquea créditos viendo un anuncio con recompensa
+   */
+  const unlockCredits = async () => {
     try {
       const rewarded = await showRewardedAd();
+      
       if (rewarded) {
-        // Añadir +2 créditos cuando el usuario completa el anuncio
-        const success = await addCredits(2);
-        if (success) {
-          Alert.alert(
-            "¡Créditos añadidos!",
-            "Has recibido 2 créditos adicionales por ver el video."
-          );
-        } else {
-          Alert.alert("Error", "No se pudieron añadir los créditos. Intenta de nuevo.");
-        }
-      } else {
-        Alert.alert(
-          "Anuncio no completado",
-          "Debes ver el anuncio completo para recibir los créditos."
-        );
+        await addCredits(2);
+        Alert.alert('¡Genial!', '¡Has desbloqueado 2 créditos adicionales! 🎉');
       }
     } catch (error) {
-      console.error("Error showing rewarded ad:", error);
-      Alert.alert("Error", "No se pudo mostrar el anuncio. Intenta de nuevo.");
-    } finally {
-      setIsWatchingAd(false);
+      console.error('Error showing rewarded ad:', error);
+      Alert.alert('Error', 'No se pudo mostrar el anuncio');
     }
   };
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-black"
-      contentContainerClassName="flex-1 px-4 pt-8 pb-24"
     >
-      <View className="flex-1 items-center justify-start">
-        <Text className="text-white text-3xl font-bold mb-8">Create</Text>
-
-        {/* Preview de imagen seleccionada o placeholder */}
-        {selectedImageUri ? (
-          <View className="w-full max-w-sm aspect-square bg-zinc-900 border border-zinc-700 rounded-3xl items-center justify-center overflow-hidden mb-6">
-            <Image
-              source={{ uri: selectedImageUri }}
-              className="w-full h-full"
-              resizeMode="cover"
-            />
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ padding: 24 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Credits Counter */}
+        <View className="bg-zinc-900/80 rounded-2xl p-4 border border-zinc-800 mb-6">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-zinc-400 text-sm">Daily Free Boosts</Text>
+            <View className="flex-row items-center gap-2">
+              <Zap size={16} color="#a855f7" />
+              <Text className="text-white font-bold">
+                {remaining}/{limit}
+              </Text>
+            </View>
           </View>
-        ) : (
-          <Pressable
-            onPress={handlePickImage}
-            className="w-full max-w-sm aspect-square bg-zinc-900 border-2 border-dashed border-zinc-700 rounded-3xl items-center justify-center mb-6"
-          >
-            <Camera size={48} color="#71717a" />
-            <Text className="text-zinc-500 text-lg mt-4">Subir Foto</Text>
-          </Pressable>
-        )}
+        </View>
 
-        <View className="w-full max-w-sm mb-4">
-          <View className="flex-row items-center gap-2">
+        {/* Image Selector */}
+        <View className="mb-6">
+          <Text className="text-zinc-400 text-sm mb-2">Select Image</Text>
+          <TouchableOpacity
+            onPress={selectImage}
+            className="h-64 bg-zinc-900 rounded-3xl border-2 border-dashed border-zinc-700 items-center justify-center overflow-hidden"
+            activeOpacity={0.8}
+          >
+            {selectedImage ? (
+              <StickerPreview imageUrl={selectedImage} className="w-full h-full border-0" />
+            ) : (
+              <View className="items-center gap-2">
+                <Upload size={48} color="#71717a" />
+                <Text className="text-zinc-500 text-sm">Tap to select image</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Prompt Input */}
+        <View className="mb-6">
+          <Text className="text-zinc-400 text-sm mb-2">Describe your sticker</Text>
+          <View className="bg-zinc-900/80 rounded-2xl border border-zinc-800 p-4">
+            <View className="flex-row items-start gap-3">
             <TextInput
               value={prompt}
               onChangeText={setPrompt}
-              placeholder="Describe tu sticker..."
-              placeholderTextColor="#a1a1aa"
-              className="flex-1 bg-zinc-900 text-white rounded-xl px-4 py-3 border border-zinc-800"
+                placeholder="Un gato con gafas de sol..."
+                placeholderTextColor="#52525b"
+                className="flex-1 text-white text-base min-h-[80px]"
               multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-            <Pressable
-              onPress={handleMagicText}
-              disabled={isLoadingMagic}
-              className={cn(
-                "w-12 h-12 rounded-full bg-zinc-800 items-center justify-center",
-                isLoadingMagic && "opacity-50"
-              )}
-            >
-              <Sparkles
-                size={24}
-                color={isLoadingMagic ? "#71717a" : "#ffffff"}
+                maxLength={200}
+                editable={!isGenerating}
               />
-            </Pressable>
+              <TouchableOpacity
+                onPress={generateText}
+                disabled={isGeneratingText || !selectedImage}
+                className="w-10 h-10 rounded-full bg-purple-500 items-center justify-center"
+                activeOpacity={0.8}
+              >
+                {isGeneratingText ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Wand2 size={20} color="#fff" />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
-        {/* Botón para seleccionar imagen si no hay una seleccionada */}
-        {!selectedImageUri && (
-          <View className="w-full max-w-sm mb-4">
-            <Pressable
-              onPress={handlePickImage}
-              className="w-full rounded-full px-6 py-3 bg-zinc-800 items-center justify-center flex-row gap-2"
-            >
-              <Camera size={20} color="#ffffff" />
-              <Text className="text-white font-bold">Subir Foto</Text>
-            </Pressable>
-          </View>
-        )}
-
-        <View className="w-full max-w-sm mb-4">
-          {!canUse() ? (
-            <Button
-              onPress={handleWatchRewardedAd}
-              disabled={isWatchingAd}
-              loading={isWatchingAd}
-              className="w-full"
-            >
-              Ver Video para Desbloquear
-            </Button>
-          ) : (
-            <Button
-              onPress={handleGenerate}
-              disabled={!prompt.trim() || !selectedImageUri || isGenerating}
-              loading={isGenerating}
-              className="w-full"
-            >
-              Generate Sticker
-            </Button>
+        {/* Generate / Unlock Button */}
+        {canUse() ? (
+          <TouchableOpacity
+            onPress={generateSticker}
+            disabled={isGenerating}
+            className="w-full py-4 rounded-2xl bg-purple-500 items-center justify-center mb-4"
+            activeOpacity={0.8}
+          >
+            <View className="flex-row items-center gap-2">
+              {isGenerating ? (
+                <>
+                  <ActivityIndicator color="#fff" />
+                  <Text className="text-white font-bold text-lg">Generating...</Text>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={20} color="#fff" />
+                  <Text className="text-white font-bold text-lg">Generate Sticker</Text>
+                </>
           )}
         </View>
-
-        <Text className="text-zinc-400 text-xs text-center">
-          {remaining}/{limit} free boosts left
-        </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={unlockCredits}
+            className="w-full py-4 rounded-2xl bg-cyan-500 items-center justify-center mb-4"
+            activeOpacity={0.8}
+          >
+            <View className="flex-row items-center gap-2">
+              <Zap size={20} color="#fff" />
+              <Text className="text-white font-bold text-lg">Watch Video to Unlock</Text>
       </View>
+          </TouchableOpacity>
+        )}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

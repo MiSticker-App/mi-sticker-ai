@@ -1,6 +1,8 @@
-import { Tabs } from "expo-router";
-import { Sparkles, Grid } from "lucide-react-native";
-import { Platform } from "react-native";
+// app/(tabs)/_layout.tsx
+import React from 'react';
+import { Tabs } from 'expo-router';
+import { View, Platform } from 'react-native';
+import { Sparkles, Grid } from 'lucide-react-native';
 
 export default function TabsLayout() {
   return (
@@ -8,43 +10,49 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: "rgba(0, 0, 0, 0.7)",
-          borderTopWidth: 0,
-          position: "absolute",
-          bottom: Platform.OS === "ios" ? 20 : 10,
+          position: 'absolute',
+          bottom: 20,
           left: 20,
           right: 20,
-          height: 60,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
           borderRadius: 30,
-          paddingBottom: 8,
-          paddingTop: 8,
+          height: 60,
+          borderTopWidth: 0,
           elevation: 0,
           shadowOpacity: 0,
+          paddingBottom: 0,
         },
-        tabBarActiveTintColor: "#ffffff",
-        tabBarInactiveTintColor: "#71717a",
+        tabBarActiveTintColor: '#a855f7',
+        tabBarInactiveTintColor: '#52525b',
+        tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: "600",
+          fontWeight: '600',
+          marginTop: 4,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 8,
         },
       }}
     >
       <Tabs.Screen
         name="create"
         options={{
-          title: "Create",
-          tabBarIcon: ({ color, size }) => (
-            <Sparkles size={size} color={color} />
-          ),
+          title: 'Create',
+          tabBarIcon: ({ color, size }) => <Sparkles size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="gallery"
         options={{
-          title: "Gallery",
-          tabBarIcon: ({ color, size }) => (
-            <Grid size={size} color={color} />
-          ),
+          title: 'Gallery',
+          tabBarIcon: ({ color, size }) => <Grid size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="pack-detail"
+        options={{
+          href: null, // Ocultar del tab bar
         }}
       />
       <Tabs.Screen
@@ -56,4 +64,3 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
-

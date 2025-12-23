@@ -6,7 +6,12 @@ module.exports = {
   ],
   presets: [require("nativewind/preset")],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        'misticker-purple': '#a855f7',
+        'misticker-pink': '#ec4899',
+      },
+    },
   },
   plugins: [],
 }
