@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Mi Sticker",
+    "name": "MiSticker",
     "slug": "ms-misticker-ai",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -24,7 +24,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000000"
       },
       "package": "com.ms.misticker.app",
@@ -35,7 +35,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.png"
     },
     "scheme": "misticker",
     "plugins": [
@@ -56,9 +56,5 @@
         "projectId": "91dc1e8b-b889-49ae-9388-49549c714e11"
       }
     }
-  },
-  "react-native-google-mobile-ads": {
-    "android_app_id": "ca-app-pub-3940256099942544~3347511713",
-    "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
   }
 }
