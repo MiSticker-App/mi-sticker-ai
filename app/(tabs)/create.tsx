@@ -11,6 +11,7 @@ import {
   Text,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Sparkles, Upload, Wand2, Zap } from 'lucide-react-native';
@@ -169,15 +170,16 @@ export default function CreateScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-black"
-    >
-      <ScrollView
+    <SafeAreaView className="flex-1 bg-black">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
-        contentContainerStyle={{ padding: 24 }}
-        keyboardShouldPersistTaps="handled"
       >
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ padding: 24, paddingTop: 16 }}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Credits Counter */}
         <View className="bg-zinc-900/80 rounded-2xl p-4 border border-zinc-800 mb-6">
           <View className="flex-row items-center justify-between">
@@ -275,7 +277,8 @@ export default function CreateScreen() {
       </View>
           </TouchableOpacity>
         )}
-    </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
