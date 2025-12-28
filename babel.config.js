@@ -3,9 +3,8 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // ELIMINA 'expo-router/babel' de aquí.
-      // Solo deja reanimated si lo estás usando
-      'react-native-reanimated/plugin',
+      "nativewind/babel",             // <--- ESTE ES EL QUE FALTABA PARA LOS ESTILOS
+      "react-native-reanimated/plugin", // <--- Este siempre va el ÚLTIMO
     ],
   };
 };

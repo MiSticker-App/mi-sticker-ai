@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Text,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -170,7 +171,11 @@ export default function CreateScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <SafeAreaView 
+      className="flex-1 bg-black"
+      style={{ flex: 1, backgroundColor: '#000000', paddingTop: 40 }}
+    >
+      <StatusBar barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
@@ -183,10 +188,10 @@ export default function CreateScreen() {
         {/* Credits Counter */}
         <View className="bg-zinc-900/80 rounded-2xl p-4 border border-zinc-800 mb-6">
           <View className="flex-row items-center justify-between">
-            <Text className="text-zinc-400 text-sm">Daily Free Boosts</Text>
+            <Text className="text-zinc-400 text-sm" style={{ color: '#FFFFFF' }}>Daily Free Boosts</Text>
             <View className="flex-row items-center gap-2">
               <Zap size={16} color="#a855f7" />
-              <Text className="text-white font-bold">
+              <Text className="text-white font-bold" style={{ color: '#FFFFFF' }}>
                 {remaining}/{limit}
               </Text>
             </View>
@@ -195,7 +200,7 @@ export default function CreateScreen() {
 
         {/* Image Selector */}
         <View className="mb-6">
-          <Text className="text-zinc-400 text-sm mb-2">Select Image</Text>
+          <Text className="text-zinc-400 text-sm mb-2" style={{ color: '#FFFFFF' }}>Select Image</Text>
           <TouchableOpacity
             onPress={selectImage}
             className="h-64 bg-zinc-900 rounded-3xl border-2 border-dashed border-zinc-700 items-center justify-center overflow-hidden"
@@ -206,7 +211,7 @@ export default function CreateScreen() {
             ) : (
               <View className="items-center gap-2">
                 <Upload size={48} color="#71717a" />
-                <Text className="text-zinc-500 text-sm">Tap to select image</Text>
+                <Text className="text-zinc-500 text-sm" style={{ color: '#FFFFFF' }}>Tap to select image</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -214,7 +219,7 @@ export default function CreateScreen() {
 
         {/* Prompt Input */}
         <View className="mb-6">
-          <Text className="text-zinc-400 text-sm mb-2">Describe your sticker</Text>
+          <Text className="text-zinc-400 text-sm mb-2" style={{ color: '#FFFFFF' }}>Describe your sticker</Text>
           <View className="bg-zinc-900/80 rounded-2xl border border-zinc-800 p-4">
             <View className="flex-row items-start gap-3">
             <TextInput
@@ -223,6 +228,7 @@ export default function CreateScreen() {
                 placeholder="Un gato con gafas de sol..."
                 placeholderTextColor="#52525b"
                 className="flex-1 text-white text-base min-h-[80px]"
+                style={{ color: '#FFFFFF' }}
               multiline
                 maxLength={200}
                 editable={!isGenerating}
@@ -255,12 +261,12 @@ export default function CreateScreen() {
               {isGenerating ? (
                 <>
                   <ActivityIndicator color="#fff" />
-                  <Text className="text-white font-bold text-lg">Generating...</Text>
+                  <Text className="text-white font-bold text-lg" style={{ color: '#FFFFFF' }}>Generating...</Text>
                 </>
               ) : (
                 <>
                   <Sparkles size={20} color="#fff" />
-                  <Text className="text-white font-bold text-lg">Generate Sticker</Text>
+                  <Text className="text-white font-bold text-lg" style={{ color: '#FFFFFF' }}>Generate Sticker</Text>
                 </>
           )}
         </View>
@@ -273,7 +279,7 @@ export default function CreateScreen() {
           >
             <View className="flex-row items-center gap-2">
               <Zap size={20} color="#fff" />
-              <Text className="text-white font-bold text-lg">Watch Video to Unlock</Text>
+              <Text className="text-white font-bold text-lg" style={{ color: '#FFFFFF' }}>Watch Video to Unlock</Text>
       </View>
           </TouchableOpacity>
         )}
