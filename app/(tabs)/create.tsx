@@ -30,6 +30,7 @@ export default function CreateScreen() {
 
   const [prompt, setPrompt] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingText, setIsGeneratingText] = useState(false);
 
@@ -91,13 +92,20 @@ export default function CreateScreen() {
    * Genera el sticker con IA
    */
   const generateSticker = async () => {
-    if (!prompt.trim()) {
-      Alert.alert('Atención', 'Escribe una descripción para tu sticker');
+    // Validación de inputs antes de cualquier operación
+    if (!selectedImage) {
+      Alert.alert(
+        'Atención',
+        'Por favor, selecciona una imagen antes de generar el sticker.'
+      );
       return;
     }
 
-    if (!selectedImage) {
-      Alert.alert('Atención', 'Selecciona una imagen primero');
+    if (!prompt.trim()) {
+      Alert.alert(
+        'Atención',
+        'Por favor, escribe una descripción para tu sticker.'
+      );
       return;
     }
 
@@ -109,7 +117,10 @@ export default function CreateScreen() {
       return;
     }
 
+    // Activar estado de loading
+    setIsLoading(true);
     setIsGenerating(true);
+
     try {
       // Consumir crédito
       const consumed = await consume();
@@ -149,6 +160,8 @@ export default function CreateScreen() {
         'No se pudo generar el sticker. Verifica tu conexión e intenta nuevamente.'
       );
     } finally {
+      // Asegurar que el estado de loading se desactive siempre
+      setIsLoading(false);
       setIsGenerating(false);
     }
   };
@@ -231,11 +244,11 @@ export default function CreateScreen() {
                 style={{ color: '#FFFFFF' }}
               multiline
                 maxLength={200}
-                editable={!isGenerating}
+                editable={!isLoading}
               />
               <TouchableOpacity
                 onPress={generateText}
-                disabled={isGeneratingText || !selectedImage}
+                disabled={isGeneratingText || !selectedImage || isLoading}
                 className="w-10 h-10 rounded-full bg-purple-500 items-center justify-center"
                 activeOpacity={0.8}
               >
@@ -253,12 +266,12 @@ export default function CreateScreen() {
         {canUse() ? (
           <TouchableOpacity
             onPress={generateSticker}
-            disabled={isGenerating}
+            disabled={isLoading}
             className="w-full py-4 rounded-2xl bg-purple-500 items-center justify-center mb-4"
             activeOpacity={0.8}
           >
             <View className="flex-row items-center gap-2">
-              {isGenerating ? (
+              {isLoading ? (
                 <>
                   <ActivityIndicator color="#fff" />
                   <Text className="text-white font-bold text-lg" style={{ color: '#FFFFFF' }}>Generating...</Text>
